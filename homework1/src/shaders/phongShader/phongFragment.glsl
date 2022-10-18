@@ -15,8 +15,8 @@ varying highp vec3 vFragPos;
 varying highp vec3 vNormal;
 
 // Shadow map related variables
-#define NUM_SAMPLES 32
-#define NUM_SAMPLES_F 32.0
+#define NUM_SAMPLES 16
+#define NUM_SAMPLES_F 16.0
 #define BLOCKER_SEARCH_NUM_SAMPLES NUM_SAMPLES
 #define PCF_NUM_SAMPLES NUM_SAMPLES
 #define NUM_RINGS 10
@@ -87,16 +87,19 @@ void uniformDiskSamples( const in vec2 randomSeed ) {
 }
 
 float findBlocker( sampler2D shadowMap, vec2 uv, float zReceiver ) {
-  float diskRadius = zReceiver * WIDTH_LIGHT * 4.0;
+  float diskRadius = zReceiver * WIDTH_LIGHT * 10.0;
 
   float zBlocker = 0.0;
+  float weight = 0.0;
   for (int i = 0; i < NUM_SAMPLES; i++) {
+    float w = 1.0 / length(diskRadius * poissonDisk[i]);
+    weight += w;
     vec4 rgbaDepth = texture2D(shadowMap, uv + diskRadius * poissonDisk[i]);
     float depth = unpack(rgbaDepth);
-    zBlocker += depth;
+    zBlocker += depth * w;
   }
-  float weight = 1.0 / NUM_SAMPLES_F;
-  zBlocker *= weight;
+  // float weight = 1.0 / NUM_SAMPLES_F;
+  zBlocker /= weight;
 
   return zBlocker;
 }
@@ -139,14 +142,16 @@ float PCSS(sampler2D shadowMap, vec4 coords){
 
   // STEP 3: filtering
   float shadow = 1.0;
+  float weight = 0.0;
   for (int i = 0; i < NUM_SAMPLES; i++) {
+    float w = 1.0 / length(penumbraSize * poissonDisk[i]);
+    weight += w;
     vec4 rgbaDepth = texture2D(shadowMap, coords.xy + penumbraSize * poissonDisk[i]);
     float depth = unpack(rgbaDepth);
-    shadow += (zReceiver - bias > depth) ? 0.0 : 1.0;
+    shadow += w * ((zReceiver - bias > depth) ? 0.0 : 1.0);
   }
-  float weight = 1.0 / NUM_SAMPLES_F;
 
-  return shadow * weight;
+  return shadow / weight;
 
 }
 
