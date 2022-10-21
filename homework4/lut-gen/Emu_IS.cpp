@@ -23,27 +23,47 @@ Vec2f Hammersley(uint32_t i, uint32_t N) { // 0-1
     return {float(i) / float(N), rdi};
 }
 
+float DistributionGGX(Vec3f N, Vec3f H, float roughness)
+{
+    float a = roughness*roughness;
+    float a2 = a*a;
+    float NdotH = std::max(dot(N, H), 0.0f);
+    float NdotH2 = NdotH*NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / std::max(denom, 0.0001f);
+}
+
 Vec3f ImportanceSampleGGX(Vec2f Xi, Vec3f N, float roughness) {
     float a = roughness * roughness;
+    // Xi is a uniform random number in [0, 1]
 
     //TODO: in spherical space - Bonus 1
-
+    float theta = atan(a * sqrt(Xi.x) / sqrt(1.0f - Xi.x));
+    float phi = 2.0f * PI * Xi.y;
 
     //TODO: from spherical space to cartesian space - Bonus 1
- 
+    Vec3f H = Vec3f(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
 
     //TODO: tangent coordinates - Bonus 1
 
-
     //TODO: transform H to tangent space - Bonus 1
     
-    return Vec3f(1.0f);
+    return H;
 }
 
 float GeometrySchlickGGX(float NdotV, float roughness) {
     // TODO: To calculate Schlick G1 here - Bonus 1
-    
-    return 1.0f;
+    float a = roughness;
+    float k = (a * a) / 2.0f;
+
+    float nom = NdotV;
+    float denom = NdotV * (1.0f - k) + k;
+
+    return nom / denom;
 }
 
 float GeometrySmith(float roughness, float NoV, float NoL) {
@@ -54,9 +74,11 @@ float GeometrySmith(float roughness, float NoV, float NoL) {
 }
 
 Vec3f IntegrateBRDF(Vec3f V, float roughness) {
-
+    const float R0 = 1.0f;
     const int sample_count = 1024;
     Vec3f N = Vec3f(0.0, 0.0, 1.0);
+
+    float Emu = 0.0;
     for (int i = 0; i < sample_count; i++) {
         Vec2f Xi = Hammersley(i, sample_count);
         Vec3f H = ImportanceSampleGGX(Xi, N, roughness);
@@ -66,15 +88,23 @@ Vec3f IntegrateBRDF(Vec3f V, float roughness) {
         float NoH = std::max(H.z, 0.0f);
         float VoH = std::max(dot(V, H), 0.0f);
         float NoV = std::max(dot(N, V), 0.0f);
+        float LoH = std::max(dot(L, H), 0.0f);
         
         // TODO: To calculate (fr * ni) / p_o here - Bonus 1
-
+        // float D = DistributionGGX(N, H, roughness);
+        // float pdf = D * NoH / (4.0f * LoH);
+        // float G = GeometrySmith(roughness, NoV, NoL);
+        // float weight = D * G / (4.0f * NoV) / pdf;
 
         // Split Sum - Bonus 2
-        
-    }
+        float G = GeometrySmith(roughness, NoV, NoL);
+        float weight = VoH * G / (NoV * NoH);
 
-    return Vec3f(1.0f);
+        Emu += weight;
+    }
+    Emu /= sample_count;
+
+    return Vec3f(Emu);
 }
 
 int main() {
